@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jednoduchý LLM Chat</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .chat-container {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      .message {
+        margin-bottom: 15px;
+        padding: 10px;
+        border-radius: 5px;
+      }
+      .user-message {
+        background-color: #e6f7ff;
+        text-align: right;
+      }
+      .assistant-message {
+        background-color: #f2f2f2;
+      }
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        margin-bottom: 10px;
+      }
+      button {
+        padding: 10px 15px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      button:disabled {
+        background-color: #cccccc;
+      }
+      .settings {
+        margin-bottom: 20px;
+      }
+      .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+        margin-left: 10px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Jednoduchý LLM Chat</h1>
+
+    <div class="settings">
+      <h3>Nastavení</h3>
+      <label for="system-message">Systémová zpráva:</label><br />
+      <textarea id="system-message" rows="2">
+Jsi užitečný asistent, který odpovídá stručně a jasně.</textarea
+      ><br />
+
+      <label for="temperature">Temperature (0-1):</label>
+      <input
+        type="range"
+        id="temperature"
+        min="0"
+        max="1"
+        step="0.1"
+        value="0.7"
+      />
+      <span id="temperature-value">0.7</span>
+    </div>
+
+    <div class="chat-container" id="chat-container">
+      <div class="message assistant-message">
+        Zdravím! Jak vám mohu dnes pomoci?
+      </div>
+    </div>
+
+    <textarea
+      id="user-input"
+      rows="3"
+      placeholder="Napište svou zprávu..."
+    ></textarea>
+    <button id="send-button">Odeslat</button>
+
+    <script>
+      const chatContainer = document.getElementById("chat-container");
+      const userInput = document.getElementById("user-input");
+      const sendButton = document.getElementById("send-button");
+      const systemMessage = document.getElementById("system-message");
+      const temperatureSlider = document.getElementById("temperature");
+      const temperatureValue = document.getElementById("temperature-value");
+
+      // Aktualizace hodnoty temperature
+      temperatureSlider.addEventListener("input", () => {
+        temperatureValue.textContent = temperatureSlider.value;
+      });
+
+      // Funkce pro přidání zprávy do chatu
+      function addMessage(content, isUser) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${
+          isUser ? "user-message" : "assistant-message"
+        }`;
+        messageDiv.textContent = content;
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      // Odeslání zprávy
+      sendButton.addEventListener("click", async () => {
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        // Přidání zprávy uživatele
+        addMessage(message, true);
+
+        // Vyčištění inputu
+        userInput.value = "";
+
+        // Deaktivace tlačítka a přidání loaderu
+        sendButton.disabled = true;
+        const spinner = document.createElement("span");
+        spinner.className = "spinner";
+        sendButton.appendChild(spinner);
+
+        try {
+          // Volání API
+          const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              prompt: message,
+              systemMessage: systemMessage.value,
+              temperature: parseFloat(temperatureSlider.value),
+            }),
+          });
+
+          const data = await response.json();
+
+          // Přidání odpovědi asistenta
+          if (data.error) {
+            addMessage(`Chyba: ${data.error}`, false);
+          } else {
+            addMessage(data.response, false);
+          }
+        } catch (error) {
+          addMessage("Došlo k chybě při komunikaci se serverem.", false);
+          console.error("Chyba:", error);
+        } finally {
+          // Reaktivace tlačítka a odstranění loaderu
+          sendButton.disabled = false;
+          sendButton.removeChild(spinner);
+        }
+      });
+
+      // Odeslání zprávy po stisknutí Enter (s klávesou Shift pro nový řádek)
+      userInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendButton.click();
+        }
+      });
+    </script>
+  </body>
+</html>
